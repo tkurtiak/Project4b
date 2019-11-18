@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import cv2 
+# import cv2 
 import numpy as np
 # from matplotlib import pyplot as plt
 from sklearn.cluster import KMeans
@@ -58,15 +58,18 @@ def process_img(image_gray,cluster=True, window_size=13,corner_def=.8,num_points
 	#we compute the 9 different types of energies
 	L5E5= texture_energy(preprocess,L5,E5)
 	E5L5= texture_energy(preprocess,E5,L5)
-	energy1= cv2.addWeighted(L5E5,0.5,E5L5,0.5,0)
+	# energy1= cv2.addWeighted(L5E5,0.5,E5L5,0.5,0)
+	energy1= (L5E5+E5L5)/2
 
 	L5R5= texture_energy(preprocess,L5,R5)
 	R5L5= texture_energy(preprocess,R5,L5)
-	energy2= cv2.addWeighted(L5R5,0.5,R5L5,0.5,0)
+	# energy2= cv2.addWeighted(L5R5,0.5,R5L5,0.5,0)
+	energy2= (L5R5+R5L5)/2
 
 	S5E5= texture_energy(preprocess,S5,E5)
 	E5S5= texture_energy(preprocess,E5,S5)
-	energy3= cv2.addWeighted(S5E5,0.5,E5S5,0.5,0)
+	# energy3= cv2.addWeighted(S5E5,0.5,E5S5,0.5,0)
+	energy3= (S5E5+E5S5)/2
 
 	energy4= texture_energy(preprocess,S5,S5)
 
@@ -74,17 +77,20 @@ def process_img(image_gray,cluster=True, window_size=13,corner_def=.8,num_points
 
 	L5S5= texture_energy(preprocess,L5,S5)
 	S5L5= texture_energy(preprocess,S5,L5)
-	energy6= cv2.addWeighted(L5S5,0.5,S5L5,0.5,0)
+	# energy6= cv2.addWeighted(L5S5,0.5,S5L5,0.5,0)
+	energy6= (S5L5+L5S5)/2
 
 	energy7= texture_energy(preprocess,E5,E5)
 
 	E5R5= texture_energy(preprocess,E5,R5)
 	R5E5= texture_energy(preprocess,R5,E5)
-	energy8= cv2.addWeighted(E5R5,0.5,R5E5,0.5,0)
+	# energy8= cv2.addWeighted(E5R5,0.5,R5E5,0.5,0)
+	energy8= (R5E5+E5R5)/2
 
 	S5R5= texture_energy(preprocess,S5,R5)
 	R5S5= texture_energy(preprocess,R5,S5)
-	energy9= cv2.addWeighted(S5R5,0.5,R5S5,0.5,0)
+	# energy9= cv2.addWeighted(S5R5,0.5,R5S5,0.5,0)
+	energy9= (R5S5+S5R5)/2
 
 	#we want nx9 array where n is num pixels and cols are energies for clustering
 	
