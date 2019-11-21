@@ -29,6 +29,7 @@ from pykalman import UnscentedKalmanFilter
 
 from robust_kalman import RobustKalman
 from robust_kalman.utils import HuberScore, VariablesHistory, WindowStatisticsEstimator
+from sklearn.cluster import KMeans
 
 ros_path = '/opt/ros/kinetic/lib/python2.7/dist-packages'
 
@@ -236,12 +237,12 @@ def featurecompare(des1, des2):
     # matches = flann.knnMatch(des1,des2,k=2)
     return matches
 
-def plotter(image, points, cc):
+def plotter(image, points, cc, col):
 
     color_img = image
     if cc == 0:
         color_img = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-    color = [0,255,0] # bgr colorspace
+    color = col # bgr colorspace
     linewidth = 3
     for x,y in points:
         cv2.circle(color_img, (int(x),int(y)), 5 , color, thickness = linewidth) # draw a red line from the point with vector = [vx, vy]        
@@ -337,46 +338,47 @@ def find_squares(img):
 
     return new_gray, cnts_oi
 
-def kmeans(data, k=3, normalize=False, limit=500):
-    """Basic k-means clustering algorithm.
-    """
-    # optionally normalize the data. k-means will perform poorly or strangely if the dimensions
-    # don't have the same ranges.
-    if normalize:
-        stats = (data.mean(axis=0), data.std(axis=0))
-        data = (data - stats[0]) / stats[1]
+# def kmeans(data, k=3, normalize=False, limit=500):
+#     """Basic k-means clustering algorithm.
+#     """
+#     # optionally normalize the data. k-means will perform poorly or strangely if the dimensions
+#     # don't have the same ranges.
+#     if normalize:
+#         stats = (data.mean(axis=0), data.std(axis=0))
+#         data = (data - stats[0]) / stats[1]
     
-    # pick the first k points to be the centers. this also ensures that each group has at least
-    # one point.
-    centers = data[:k]
+#     # pick the first k points to be the centers. this also ensures that each group has at least
+#     # one point.
+#     centers = data[:k]
 
-    for i in range(limit):
-        # core of clustering algorithm...
-        # first, use broadcasting to calculate the distance from each point to each center, then
-        # classify based on the minimum distance.
-        classifications = np.argmin(((data[:, :, None] - centers.T[None, :, :])**2).sum(axis=1), axis=1)
-        # next, calculate the new centers for each cluster.
-        new_centers = np.array([data[classifications == j, :].mean(axis=0) for j in range(k)])
+#     for i in range(limit):
+#         # core of clustering algorithm...
+#         # first, use broadcasting to calculate the distance from each point to each center, then
+#         # classify based on the minimum distance.
+#         classifications = np.argmin(((data[:, :, None] - centers.T[None, :, :])**2).sum(axis=1), axis=1)
+#         print(classifications)
+#         # next, calculate the new centers for each cluster.
+#         new_centers = np.array([data[classifications == j, :].mean(axis=0) for j in range(k)])
 
-        # if the centers aren't moving anymore it is time to stop.
-        if (new_centers == centers).all():
-            break
-        else:
-            centers = new_centers
-    # else:
-    #     # this will not execute if the for loop exits on a break.
-    #     # raise ValueError("Clustering algorithm did not complete within limit iterations")
-    #     # centers = new_centers
-    #     centers = []
+#         # if the centers aren't moving anymore it is time to stop.
+#         if (new_centers == centers).all():
+#             break
+#         else:
+#             centers = new_centers
+#     # else:
+#     #     # this will not execute if the for loop exits on a break.
+#     #     # raise ValueError("Clustering algorithm did not complete within limit iterations")
+#     #     # centers = new_centers
+#     #     centers = []
             
-    # if data was normalized, the cluster group centers are no longer scaled the same way the original
-    # data is scaled.
-    if normalize:
-        centers = centers * stats[1] + stats[0]
+#     # if data was normalized, the cluster group centers are no longer scaled the same way the original
+#     # data is scaled.
+#     if normalize:
+#         centers = centers * stats[1] + stats[0]
 
-    # print("Clustering completed after {} iterations".format(i))
-
-    return classifications, centers
+#     # print("Clustering completed after {} iterations".format(i))
+#     # print(np.shape(centers))
+#     return classifications, centers
 
 
 
@@ -443,16 +445,16 @@ def PoseEstimate(leftImg,rightImg):
         points = points[matchMaskbool[:,0]]
 
         # Finding points inside contours
-        y = 0
-        points_new = np.zeros((len(matches),2))
+        # y = 0
+        points_new = []#np.zeros((len(matches),2))
         for x in range(len(points)):
             for l in range(len(cnts_oi)):
             # print(points[x].tolist())
                 point = (int(points[x][0]), int(points[x][1]))
                 dist = cv2.pointPolygonTest(cnts_oi[l],point,False)
                 if dist >= 0:
-                    points_new[y] = points[x]
-                    y = y+1
+                    points_new.append(points[x])
+                    # y = y+1
 
         # Finding average points
         avg_point_x = np.average(points_new[:][0])
@@ -460,18 +462,47 @@ def PoseEstimate(leftImg,rightImg):
 
         avg_point = (int(avg_point_x),int(avg_point_y))
 
-        classifications, centers = kmeans(points_new)
+        # classifications, centers = kmeans(points_new)
+        estimator = KMeans(n_clusters=3)
+        estimator.fit(points_new)
+        # Ck's are the different clusters with corresponding point indices
+        c1 = np.where(estimator.labels_ == 0)[0]
+        c2 = np.where(estimator.labels_ == 1)[0]
+        c3 = np.where(estimator.labels_ == 2)[0]
+        max_len = len(c1)
+        max_c = 0
+ 
+        if len(c2) > max_len:
+            max_len = len(c2)
+            max_c = 1
+        if len(c3) > max_len:
+            max_len = len(c3)
+            max_c = 2
+
+        max_cx = estimator.cluster_centers_[max_c][0]
+        max_cy = estimator.cluster_centers_[max_c][1]
+
+        points_max_c = []
+        print(points_new[0][0])
+        # for i in range(max_len):
+        #     points_max_c.append(points_new[i,:])
+        
+
+        # print(max_cy)
+        # print({i: np.where(estimator.labels_ == i)[0] for i in range(estimator.n_clusters)})
+
+        # print(np.shape(classifications))
         # print(centers.transpose()[0].astype(int))
-        xarr[iterable] = max(centers.transpose()[0].astype(int))
-        yarr[iterable] = max(centers.transpose()[1].astype(int))
+    #     xarr[iterable] = max(centers.transpose()[0].astype(int))
+    #     yarr[iterable] = max(centers.transpose()[1].astype(int))
 
-        # center_x, center_y = centers.astype(int)
+    #     # center_x, center_y = centers.astype(int)
 
-    x = int(np.average(xarr))
-    y = int(np.average(yarr))
+    # x = int(np.average(xarr))
+    # y = int(np.average(yarr))
 
-    plotavg(img,(x,y),0)
-    # plotter(img,points_new,0)
+    plotavg(img,(max_cx,max_cy),0)
+    plotter(img,np.array(points_new),0, (255, 0, 0))
 
     # print(y)
     # point = []
