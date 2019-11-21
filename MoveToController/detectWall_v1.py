@@ -22,7 +22,7 @@ from std_msgs.msg import Empty
 # import PlaneRANSAC as PR
 from itertools import compress
 import tf
-from optic_flow_example.msg import OpticFlowMsg
+#from optic_flow_example.msg import OpticFlowMsg
 import cPickle
 import sys
 # from pykalman import UnscentedKalmanFilter
@@ -149,8 +149,8 @@ def writeOdom(data):
 
 def rundetection():
     rospy.init_node('feature_detection', anonymous=True)
-    right_sub = message_filters.Subscriber("/image_raw_throttled", Image, queue_size=10)#,heyo1)#,queue_size=4)
-    left_sub = message_filters.Subscriber("/image_raw_throttled", Image, queue_size=10)#,heyo2)#,queue_size=4)
+    right_sub = message_filters.Subscriber("/image_raw", Image, queue_size=10)#,heyo1)#,queue_size=4)
+    left_sub = message_filters.Subscriber("/image_raw", Image, queue_size=10)#,heyo2)#,queue_size=4)
 
     rospy.Subscriber('/bebop/odom', Odometry, writeOdom)
 
@@ -470,54 +470,61 @@ def PoseEstimate(leftImg,rightImg):
         if len(points_new)<clusters_num:
             clusters_num = len(points_new)
         print(clusters_num)
-        estimator = KMeans(n_clusters=clusters_num)
-        estimator.fit(points_new)
-        # Ck's are the different clusters with corresponding point indices
-        c1 = np.where(estimator.labels_ == 0)[0]
-        c2 = np.where(estimator.labels_ == 1)[0]
-        c3 = np.where(estimator.labels_ == 2)[0]
-        max_len = len(c1)
-        max_c = 0
-        max_con = c1
- 
-        if len(c2) > max_len:
-            max_len = len(c2)
-            max_c = 1
-            max_con = c2
-        if len(c3) > max_len:
-            max_len = len(c3)
-            max_c = 2
-            max_con = c3
+        if clusters_num:
+            estimator = KMeans(n_clusters=clusters_num)
+            estimator.fit(points_new)
+            # Ck's are the different clusters with corresponding point indices
+            c1 = np.where(estimator.labels_ == 0)[0]
+            c2 = np.where(estimator.labels_ == 1)[0]
+            c3 = np.where(estimator.labels_ == 2)[0]
+            max_len = len(c1)
+            max_c = 0
+            max_con = c1
+     
+            if len(c2) > max_len:
+                max_len = len(c2)
+                max_c = 1
+                max_con = c2
+            if len(c3) > max_len:
+                max_len = len(c3)
+                max_c = 2
+                max_con = c3
 
-        max_cx = estimator.cluster_centers_[max_c][0]
-        max_cy = estimator.cluster_centers_[max_c][1]
+            max_cx = estimator.cluster_centers_[max_c][0]
+            max_cy = estimator.cluster_centers_[max_c][1]
 
-        points_max_c = []
-        # print(points_new[max_con[0]][:])
-        for i in range(max_len):
-            points_max_c.append(points_new[max_con[i]][:])
-        
+            points_max_c = []
+            # print(points_new[max_con[0]][:])
+            for i in range(max_len):
+                points_max_c.append(points_new[max_con[i]][:])
+
+        else:
+            max_cx = points_new[0][0]
+            max_cy = points_new[0][1]
+
+
 
         # print(max_cy)
         # print({i: np.where(estimator.labels_ == i)[0] for i in range(estimator.n_clusters)})
 
         # print(np.shape(classifications))
         # print(centers.transpose()[0].astype(int))
-    #     xarr[iterable] = max(centers.transpose()[0].astype(int))
-    #     yarr[iterable] = max(centers.transpose()[1].astype(int))
+        xarr[iterable] = max_cx
+        yarr[iterable] = max_cy
 
     #     # center_x, center_y = centers.astype(int)
 
-    # x = int(np.average(xarr))
-    # y = int(np.average(yarr))
+    x = int(np.average(xarr))
+    y = int(np.average(yarr))
 
     # plotavg(img,(max_cx,max_cy),0)
     centroid = [max_cx,max_cy]
     outt = Point()
     outt.x=x
     outt.y=y
+    print(outt)
     center_pub.publish(outt)
-    #plotavg(img,(x,y),0)
+    plotavg(img,(x,y),0)
     # plotter(img,np.array(points_new),0, (255, 0, 0))
     #plotter(img, points_new, points_max_c, centroid, 0, (255, 0, 0), (0, 0, 255), (0, 255, 0))
 
