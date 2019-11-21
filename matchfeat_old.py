@@ -57,6 +57,8 @@ f = 202
 # Stereo base distance [mm]
 B = 30
 prev_time = 0
+x_prev = 0
+y_prev = 0
 
 prev_image = None
 last_time = 0
@@ -67,6 +69,7 @@ bridge = CvBridge()
 points_to_track = []
 
 odom_pub = rospy.Publisher("/our_odometry",Odometry,queue_size = 10)
+contours_pub = rospy.Publisher('/mask', Image, queue_size=1)
 
 #########################
 #KALMAN EFFORTS
@@ -253,12 +256,12 @@ def plotter(image, points, points1, points2, cc, col, col1, col2):
         cv2.circle(color_img, (int(x),int(y)), 5 , color1, thickness = linewidth) # draw a red line from the point with vector = [vx, vy]        
     # for x,y in points2:
     cv2.circle(color_img, (int(points2[0]),int(points2[1])), 5 , color2, thickness = linewidth) # draw a red line from the point with vector = [vx, vy]        
-    
-    plt.cla()
-    # plt.plot(color_img)
-    plt.imshow(color_img)
-    # plt.show()
-    plt.pause(0.05)
+    return color_img
+    # plt.cla()
+    # # plt.plot(color_img)
+    # plt.imshow(color_img)
+    # # plt.show()
+    # plt.pause(0.05)
     # cv2.imshow('tracked image',color_img)
     # cv2.waitKey(1)
 
@@ -393,9 +396,11 @@ def find_squares(img):
 
 def PoseEstimate(leftImg,rightImg):
     global prev_time
+    global x_prev
+    global y_prev
     # kalman_robust, history, z, sigma_process, sigma_measure
     
-    rolavnum = 4
+    rolavnum = 6
 
     # Rolling average
     xarr = np.zeros(rolavnum)
@@ -469,52 +474,71 @@ def PoseEstimate(leftImg,rightImg):
         clusters_num = 3
         if len(points_new)<clusters_num:
             clusters_num = len(points_new)
-        print(clusters_num)
-        estimator = KMeans(n_clusters=clusters_num)
-        estimator.fit(points_new)
-        # Ck's are the different clusters with corresponding point indices
-        c1 = np.where(estimator.labels_ == 0)[0]
-        c2 = np.where(estimator.labels_ == 1)[0]
-        c3 = np.where(estimator.labels_ == 2)[0]
-        max_len = len(c1)
-        max_c = 0
-        max_con = c1
- 
-        if len(c2) > max_len:
-            max_len = len(c2)
-            max_c = 1
-            max_con = c2
-        if len(c3) > max_len:
-            max_len = len(c3)
-            max_c = 2
-            max_con = c3
 
-        max_cx = estimator.cluster_centers_[max_c][0]
-        max_cy = estimator.cluster_centers_[max_c][1]
+        if clusters_num:
+            print(clusters_num)
+            estimator = KMeans(n_clusters=clusters_num)
+            estimator.fit(points_new)
+            # Ck's are the different clusters with corresponding point indices
+            c1 = np.where(estimator.labels_ == 0)[0]
+            c2 = np.where(estimator.labels_ == 1)[0]
+            c3 = np.where(estimator.labels_ == 2)[0]
+            max_len = len(c1)
+            max_c = 0
+            max_con = c1
+     
+            if len(c2) > max_len:
+                max_len = len(c2)
+                max_c = 1
+                max_con = c2
+            if len(c3) > max_len:
+                max_len = len(c3)
+                max_c = 2
+                max_con = c3
 
-        points_max_c = []
-        # print(points_new[max_con[0]][:])
-        for i in range(max_len):
-            points_max_c.append(points_new[max_con[i]][:])
-        
+            max_cx = estimator.cluster_centers_[max_c][0]
+            max_cy = estimator.cluster_centers_[max_c][1]
 
-        # print(max_cy)
-        # print({i: np.where(estimator.labels_ == i)[0] for i in range(estimator.n_clusters)})
+            points_max_c = []
+            # print(points_new[max_con[0]][:])
+            for i in range(max_len):
+                points_max_c.append(points_new[max_con[i]][:])
+            
 
-        # print(np.shape(classifications))
-        # print(centers.transpose()[0].astype(int))
-        xarr[iterable] = max_cx
-        yarr[iterable] = max_cy
+            # print(max_cy)
+            # print({i: np.where(estimator.labels_ == i)[0] for i in range(estimator.n_clusters)})
 
-    #     # center_x, center_y = centers.astype(int)
+            # print(np.shape(classifications))
+            # print(centers.transpose()[0].astype(int))
+            xarr[iterable] = max_cx
+            yarr[iterable] = max_cy
 
-    x = int(np.average(xarr))
-    y = int(np.average(yarr))
+        #     # center_x, center_y = centers.astype(int)
 
-    plotavg(img,(x,y),0)
-    # centroid = [max_cx,max_cy]
-    # # plotter(img,np.array(points_new),0, (255, 0, 0))
-    # plotter(img, points_new, points_max_c, centroid, 0, (255, 0, 0), (0, 0, 255), (0, 255, 0))
+        x = int(np.average(xarr))
+        y = int(np.average(yarr))
+        # first = 1
+        # if (first == 1):
+        #     x_prev = x
+        #     y_prev = y
+        #     first = 0
+
+        # if np.sqrt(np.square(x_prev-x) - )
+
+         
+
+        # plotavg(img,(x,y),0)
+
+        centroid = [max_cx,max_cy]
+        # plotter(img,np.array(points_new),0, (255, 0, 0))
+        pub_cv = plotter(img, points_new, points_max_c, centroid, 0, (255, 0, 0), (0, 0, 255), (0, 255, 0))
+
+        contours_pub.publish(bridge.cv2_to_imgmsg(pub_cv, "rgb8")) 
+
+
+
+    # x_prev = x
+    # y_prev = y
 
     # print(y)
     # point = []
