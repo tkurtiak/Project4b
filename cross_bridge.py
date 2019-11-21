@@ -63,9 +63,17 @@ def setlanded(msg):
 def updatebridge(msg):
 	global global_bridge_description
 	global frames_checked
+	global global_last_iffy_bridge
+
 	global_bridge_description[0]=msg.x #horizontal like
 	global_bridge_description[1]=msg.y
 	global_bridge_description[2]=msg.z #radians yo
+
+
+	if not global_bridge_description.all()==0:
+		global_last_iffy_bridge=global_bridge_description
+
+
 	rospy.loginfo(msg)
 	frames_checked=frames_checked+1
 
@@ -95,11 +103,12 @@ def odomlistener():
 
 
 
-def move_appropriately(bridge_decription):
+def move_appropriately(bridge_description):
 	global global_pos
 
 	global frames_checked
 	frames_checked=0
+	# marker_loc = 0
 	#keyboard w 17.5
 
 	#fit vertically in frame at 8in z
@@ -110,29 +119,47 @@ def move_appropriately(bridge_decription):
 	
 
 	C=np.array([160,120,0])
-	A=np.array([global_marker_center[0],global_marker_center[1],0])
-	B=np.array([A[0] + 30* np.cos(global_marker_center[2]),A[1] + 30 * np.sin(global_marker_center[2]),0])
+	A=np.array([bridge_description[0],bridge_description[1],0])
+	B=np.array([A[0] + 30* np.cos(bridge_description[2]),A[1] + 30 * np.sin(bridge_description[2]),0])
 
 	dist=np.linalg.norm(np.cross(C-A,B-A))/np.linalg.norm(B-A)
+
+	dist_real= np.tan(((dist/140)*53)*np.pi/180)*global_pos.position.z
 	
-	if dist<8:
-		vector2bridge= np.array([160,120])-global_marker_center[:2]# if 0,0 in top left corner
+	print 'dist_real: ',dist_real
+
+
+	if bridge_description[0]%1 != 0 and bridge_description[1]%1 != 0:
+		dist_real=.5
+
+
+	if dist_real<.2:
+		vector2bridge= np.array([160,120])-A[:2]# if 0,0 in top left corner
 		deg_offsets= (vector2bridge/(np.array([160,120]))) * np.array([FOVx,FOVy])
 		marker_loc=np.tan(deg_offsets*np.pi/180)*global_pos.position.z #marker loc relative to you 
 		#marker_loc is x right, y forward
-		moveto_body(.8*marker_loc[1],-.8*marker_loc[0],0) #body x is forward, y is left
-	else:
+		print 'GUNNING IT'
+		moveto_body(1.7*marker_loc[1],-1.7*marker_loc[0],0) #body x is forward, y is left
+		print 'DONE'
+		pub_land.publish()
+		pub_land.publish()
+		pub_land.publish()
 
-		if global_marker_center[2]> (3.14/2):
-			angle=global_marker_center[2]-3.14 #this angle is +ve CW!!!!
+	else:
+		factor=.5
+		if dist_real<.4:
+			factor=.85
+
+		if bridge_description[2]> (3.14/2):
+			angle=bridge_description[2]-3.14 #this angle is +ve CW!!!!
 		else:
-			angle=global_marker_center[2]
+			angle=bridge_description[2]
 
 		dirvec= np.array([dist*np.sin(angle), dist*np.cos(angle)])
 		deg_offsets= (dirvec/(np.array([160,120]))) * np.array([FOVx,FOVy])
 		waypoint_loc= np.tan(deg_offsets*np.pi/180)*global_pos.position.z
 
-		moveto_body(.5*marker_loc[1],-.5*marker_loc[0],0)
+		moveto_body(factor*waypoint_loc[1],-1*factor*waypoint_loc[0],0)
 
 
 
@@ -152,11 +179,12 @@ def consider_bridge():
 	global frames_checked
 	
 
-	if global_last_iffy_bridge.all()==0:
+	if global_last_iffy_bridge.all()==0 and global_bridge_description.all()==0:
 		print('Havent found shit')
-		if global_pos.position.z<3:
+		if global_pos.position.z<2.5:
 			moveto_body(0,0,.5) #move up to see something
 		else:
+			print('Landing cuz I havent found anything')
 			pub_land.publish() #edge case shit here
 
 	else: #we something at some point
@@ -176,7 +204,7 @@ def consider_bridge():
 				global_last_good_pos=global_pos
 
 				print('DIS DAT DANKY DANKY')
-				move_appropriately(global_bridge_decription)
+				move_appropriately(global_bridge_description)
 
 			if global_bridge_description[0]%1 != 0 and global_bridge_description[1]%1 != 0:
 
@@ -184,12 +212,12 @@ def consider_bridge():
 				if np.linalg.norm(global_last_iffy_bridge[:2]-(global_bridge_description[:2]-.5))<4  and np.abs(global_last_iffy_bridge[2]-global_bridge_description[2])<.1:
 					print('DIS DAT SKETCHY WETCHY but ill take it')
 
-					global_last_iffy_bridge=global_bridge_decription
+					global_last_iffy_bridge=global_bridge_description
 					#update global good bridge?
-					move_appropriately(global_bridge_decription)
+					move_appropriately(global_bridge_description)
 
 				else:
-					global_last_iffy_bridge=global_bridge_decription
+					global_last_iffy_bridge=global_bridge_description
 
 
 def moveto_body(x,y,z):
@@ -225,7 +253,7 @@ def moveto_body(x,y,z):
 
 		error=1000.
 		error_integral=np.array([0.,0.,0.])
-		while error>.15 and islanded==False:# and np.linalg.norm(np.array([global_vel.linear.x, global_vel.linear.y, global_vel.linear.y]))>.1:
+		while error>.14 and islanded==False:# and np.linalg.norm(np.array([global_vel.linear.x, global_vel.linear.y, global_vel.linear.y]))>.1:
 			print('error-------------------------------------------------------------------------')
 			print(error)
 			current_pos_inertial=np.array([global_pos.position.x, global_pos.position.y, global_pos.position.z])
@@ -256,9 +284,9 @@ def moveto_body(x,y,z):
 
 			#move_vect_body[2]=1.29*move_vect_body[2]
 
-			move_array[0]=.08*move_vect_body[0] - .16*velocity_vect_body[0] + .001*error_integral[0] #TUNE THIS
-			move_array[1]=.08*move_vect_body[1] - .16*velocity_vect_body[1] + .001*error_integral[1]
-			move_array[2]=.53*move_vect_body[2] - .10*velocity_vect_body[2] + .001*error_integral[2]
+			move_array[0]=.1*move_vect_body[0] - .15*velocity_vect_body[0] + .002*error_integral[0] #TUNE THIS
+			move_array[1]=.1*move_vect_body[1] - .15*velocity_vect_body[1] + .002*error_integral[1]
+			move_array[2]=.63*move_vect_body[2] - .10*velocity_vect_body[2] + .002*error_integral[2]
 
 
 			timedelay= .1#TUNE THIS
