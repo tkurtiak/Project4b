@@ -77,7 +77,7 @@ lk_params = dict( winSize  = (15,15),
 bridge = CvBridge()
 points_to_track = []
 
-odom_pub = rospy.Publisher("/our_odometry",Odometry,queue_size = 10)
+center_pub = rospy.Publisher("/wall_center_point",Point)
 contours_pub = rospy.Publisher('/mask', Image, queue_size=1)
 
 def totuple(a):
@@ -370,6 +370,11 @@ def PoseEstimate(leftImg,rightImg):
         # rolling avg centroid
         x = int(x/points_max_cy.size())
         y = int(y/points_max_cy.size())
+
+        outt = Point()
+        outt.x=x
+        outt.y=y
+        center_pub.publish(outt)
 
         # plotavg(img,(x,y),0)
 
