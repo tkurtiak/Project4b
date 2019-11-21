@@ -6,7 +6,7 @@
 
 # Make this program exacutable
 # chmod +x nodes/HelixTrajectoryController.py
-import time
+
 import rospy
 import time
 import numpy as np
@@ -28,7 +28,6 @@ global_marker_center=np.array([0.,0.])
 global_marker_center_avg=np.array([0.,0.])
 
 islanded=True
-yawflag = 1
 
 pub_commands= rospy.Publisher('bebop/cmd_vel',Twist,queue_size=1)
 pub_takeoff= rospy.Publisher('bebop/takeoff',Empty,queue_size=1)
@@ -99,10 +98,18 @@ def odomlistener():
 
         rate.sleep()    
 
+def send_yaw(yaw, time1):
+    velocity = Twist()
+    velocity.angular.z = yaw
+    time_init = rospy.Time.now()
+    dt1 = rospy.Duration(secs=time1)
+    while( (rospy.Time.now() - time_init)) < dt1:
+        pub_commands.publish(velocity)
 
+    print("Finished this")
 
 def trackwall():
-    global yawflag
+    
     global isfirststep
     global global_pos
     global global_command
@@ -110,23 +117,22 @@ def trackwall():
     global global_marker_center
     global global_marker_center_avg
     global Z_cmd
-    # global timekeep
     #x, y are initial coordinates of the landing (gaussian mean or whatever the fuck)
 
     FOVx=50 #deg
     FOVy=34 #deg
-    yaw = 0
-    yawflag = 1
-    sendonce = 0
-    timeflag = 1
+
 
     while isfirststep!=True:
         print('Im doing the first steparoony now')
         # moveto_body(x,0,0) #move over ish the bitch
         # # -ve here is to the right
         # moveto_body(0,-y,0) #move over ish the bitch
-        Z_cmd = 1.85
+        Z_cmd = 1.5
         moveto_body(0,0,Z_cmd) #move up to see it
+        # if yawflag==1:
+        send_yaw(-0.2,2)
+            # yawflag = 0
 
         print('Im done with the first steparoony')
         isfirststep=True #first step is done, don't ever do this shit again
@@ -135,30 +141,8 @@ def trackwall():
         wall_x = global_marker_center[0].copy()
         wall_y = global_marker_center[1].copy()
 
-        start = time.time()
 
-        if yawflag==1:
-            send_yaw(-0.18,2)
-            yawflag = 0
-            # send_yaw(0)s
-
-        # if timeflag == 1:
-            # time.sleep(3)
-            # timeflag = 0
-
-        if wall_x != 0 and wall_y != 0 and yawflag==0:
-
-            if sendonce==0:
-                # send_yaw(0,1)
-                moveto_body(0,0,Z_cmd)
-                sendonce = 1
-            #For Yaw correction
-            # if timekeep==1 and yawflag == 1:
-            #     yaw = 0.11
-
-            # if abs(odom.pose.pose.orientation.)>0.33:
-            #     yawflag = 0
-            #     yaw = 0
+        if wall_x != 0 and wall_y != 0:
 
             # Determine if the wall is Tall or short
             # wallheight_thresh = 75 # percent of the image height above or below the centrer to consider the wall short or tall
@@ -178,16 +162,15 @@ def trackwall():
             step = 0.3
             phi_angle_to_wall = (wall_x/(framex/2)*FOVx) *3.14159/180 # angle in radians, defined positive right
             errorx = wall_x
-            # print('Pixel Y error:', errorx)
-            # print('Angle to Wall:',phi_angle_to_wall*180/3.14)
+            print('Pixel Y error:', errorx)
+            print('Angle to Wall:',phi_angle_to_wall*180/3.14)
             x_cmd = 0 #step*np.cos(phi_angle_to_wall)
-            # -0.002 for normal case.
-            y_cmd = -.008*wall_x#-step*np.sin(phi_angle_to_wall) # positive movement is left, so we want to move right if angle is positive
+            y_cmd = -.003*wall_x#-step*np.sin(phi_angle_to_wall) # positive movement is left, so we want to move right if angle is positive
             
-            #Z = 2.2 for high and 0.7 for low
-            if abs(wall_x) < 50:
-                print("Reached condition!")
-                x_cmd = .75
+
+            if abs(wall_x) < 75:
+                print("IN POSITION TO GO FORWARD!")
+                x_cmd = 1.2
                 Z_cmd = 0.8
 
 
@@ -208,12 +191,11 @@ def trackwall():
             if global_pos.position.z > 2.5:
                 print('Too high, landing')
                 pub_land.publish()
-            
             else:
-                # print('Executing X,Y body, Z inertial',x_cmd,y_cmd,Z_cmd)
+                print('Executing X,Y body, Z inertial',x_cmd,y_cmd,Z_cmd)
 
                 # while abs(errorx)>20:
-                print("In Else")
+
                 #     global_command.linear.x=0
                 #     global_command.linear.y=y_cmd
                 #     global_command.linear.z=0
@@ -224,7 +206,7 @@ def trackwall():
 
                 # print("Done!")
                 # pub_land.publish()
-                # moveto_body()
+
                 moveto_body(x_cmd,y_cmd,Z_cmd)
 
                 # cmdPt = Point()
@@ -236,19 +218,11 @@ def trackwall():
         # pub_land.publish()
 
 
-def send_yaw(yaw, time1):
-    velocity = Twist()
-    velocity.angular.z = yaw
-    time_init = rospy.Time.now()
-    dt1 = rospy.Duration(secs=time1)
-    while( (rospy.Time.now() - time_init)) < dt1:
-        pub_commands.publish(velocity)
 
 
 ################# Can we make Z not be in body frame?
 def moveto_body(x,y,z):
     global global_pos
-    global yawflag
     global global_vel
     global global_command
     global islanded
@@ -278,13 +252,13 @@ def moveto_body(x,y,z):
     #print('STARTING MOVE')
     if islanded==False:
         print('STARTING MOVE')
-        # print(np.array([x,y,z]))
+        print(np.array([x,y,z]))
 
         error=1000.
         error_integral=np.array([0.,0.,0.])
         while error>.13 and islanded==False:# and np.linalg.norm(np.array([global_vel.linear.x, global_vel.linear.y, global_vel.linear.y]))>.1:
             print('error-------------------------------------------------------------------------')
-            # print(error)
+            print(error)
             current_pos_inertial=np.array([global_pos.position.x, global_pos.position.y, global_pos.position.z])
             move_vect_inertial= expected_pos_inertial-current_pos_inertial
 
@@ -319,30 +293,23 @@ def moveto_body(x,y,z):
 
 
             timedelay= .1#TUNE THIS
-            print('move vect')
-            print(move_array)
-            print('move_vect_body')
-            print(move_vect_body)
-            print('velocity_vect_body')
-            print(velocity_vect_body)
-            print('error_integral')
-            print(error_integral)
-            print(' ')
-            print('command is')
-            print(np.array([x,y,z]))
-            print('expected_pos_inertial')
-            print(expected_pos_inertial)
-            print('current_pos_inertial')
-            print(current_pos_inertial)
+            # print('move vect')
+            # print(move_array)
+            # print('move_vect_body')
+            # print(move_vect_body)
+            # print('velocity_vect_body')
+            # print(velocity_vect_body)
+            # print('error_integral')
+            # print(error_integral)
+            # print(' ')
+            # print('command is')
+            # print(np.array([x,y,z]))
+            # print('expected_pos_inertial')
+            # print(expected_pos_inertial)
+            # print('current_pos_inertial')
+            # print(current_pos_inertial)
 
-            # if yaw!=0:
 
-            #     global_command.linear.x=0
-            #     global_command.linear.y=0
-            #     global_command.linear.z=0
-            #     global_command.angular.x=0
-            #     global_command.angular.y=0
-            #     global_command.angular.z=yaw
 
             global_command.linear.x=move_array[0]
             global_command.linear.y=move_array[1]
