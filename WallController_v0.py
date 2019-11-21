@@ -152,7 +152,7 @@ def trackwall():
 
             # If we are getting erronious angles, we're probably past the wall and should land now.  We need a more robust signal for passing the wall
             if phi_angle_to_wall>30*3.14159/180:
-                 print('Crazy angle... landing')
+                print('Crazy angle... landing')
                 pub_land.publish()
                 # moveto_body(0,0,-.5)
             else:
