@@ -128,32 +128,35 @@ def trackwall():
         if wall_x != 0 and wall_y != 0:
 
             # Determine if the wall is Tall or short
+            wallheight_thresh = .1 # percent of the image height above or below the centrer to consider the wall short or tall
             # If the wall is below us when we are high, the wall must be short
-            if 2*wall_y/framey < .1 and global_pos.position.z>1.8:
+            if 2*wall_y/framey < wallheight_thresh and global_pos.position.z>1.8:
                 # Wall is short
                 Z_cmd = 2 # set z height to 2 meters
                 print('It looks like the wall is SHORT')
             # If the wall is above us when we are low, the wall must be tall
-            elif 2*wall_y/framey  > .1 and global_pos.position.z<1:
-                # wall is tall
+            elif 2*wall_y/framey  > wallheight_thresh and global_pos.position.z<1:
+                # wall is tallk
                 Z_cmd = 0.5 # set z height to 0.5 meters
                 print('It looks like the wall is TALL')
 
-            # now take a 0.5 meter step towards the wall
-            step = 0.5
+            # now take a 0.3 meter step towards the wall
+            step = 0.3
             phi_angle_to_wall = (wall_x/(framex/2)*FOVx) *3.14159/180 # angle in radians, defined positive right
+            print('Angle to Wall:',phi_angle_to_wall*180/3.14)
             x_cmd = step*np.cos(phi_angle_to_wall)
             y_cmd = -step*np.sin(phi_angle_to_wall) # positive movement is left, so we want to move right if angle is positive
-            print('Executing X,Y body, Z inertial',x_cmd,y_cmd,Z_cmd)
-
+            
             #deg_offsets= (vector2center/(np.array([160,120])))*np.array([FOVx,FOVy])
             #marker_loc=np.tan(deg_offsets*np.pi/180)*global_pos.position.z
 
             # If we are getting erronious angles, we're probably past the wall and should land now.  We need a more robust signal for passing the wall
             if phi_angle_to_wall>30*3.14159/180:
+                 print('Crazy angle... landing')
                 pub_land.publish()
                 # moveto_body(0,0,-.5)
             else:
+                print('Executing X,Y body, Z inertial',x_cmd,y_cmd,Z_cmd)
                 moveto_body(x_cmd,y_cmd,Z_cmd)
 
         # pub_land.publish()
