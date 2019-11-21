@@ -143,7 +143,7 @@ def trackwall():
                 print('It looks like the wall is TALL')
 
             # now take a 0.3 meter step towards the wall
-            step = 0.3
+            step = 0.25
             phi_angle_to_wall = (wall_x/(framex/2)*FOVx) *3.14159/180 # angle in radians, defined positive right
             print('Angle to Wall:',phi_angle_to_wall*180/3.14)
             x_cmd = step*np.cos(phi_angle_to_wall)
@@ -159,12 +159,13 @@ def trackwall():
                 # moveto_body(0,0,-.5)
             else:
                 print('Executing X,Y body, Z inertial',x_cmd,y_cmd,Z_cmd)
-                #moveto_body(x_cmd,y_cmd,Z_cmd)
-                cmdPt = Point()
-                cmdPt.x = x_cmd
-                cmdPt.y = y_cmd
-                cmdPt.z = Z_cmd
-                pub_moveto.publish(cmdPt)
+                moveto_body(x_cmd,y_cmd,Z_cmd)
+
+                # cmdPt = Point()
+                # cmdPt.x = x_cmd
+                # cmdPt.y = y_cmd
+                # cmdPt.z = Z_cmd
+                # pub_moveto.publish(cmdPt)
 
         # pub_land.publish()
 
