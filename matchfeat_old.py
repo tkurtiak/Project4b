@@ -41,14 +41,23 @@ if ros_path in sys.path:
 import cv2
 
 sys.path.append('/opt/ros/kinetic/lib/python2.7/dist-packages')
-# import sys
-# # insert at 1, 0 is the script path (or '' in REPL)
-# # sys.path.insert(1, '/home/vdorbala/git/PyFeatureTrack/')
-# sys.path.insert(1, '/home/vdorbala/git/KLT/')
+keypoints = cPickle.loads(open("./keypoints.txt").read())
+kp = []
 
-# from klt import lucasKannadeTracker
+for point in keypoints:
+    temp = cv2.KeyPoint(x=point[0][0],y=point[0][1],_size=point[1], _angle=point[2], _response=point[3], _octave=point[4], _class_id=point[5]) 
+    kp.append(temp)
 
-# import faulthandler
+des_img_des = np.loadtxt('descriptors.txt', dtype = float)
+a = des_img_des
+# a1 = np.loadtxt('descriptors1.txt', dtype = float)
+
+rolavnum = 4
+it = 0
+
+# Rolling average
+xarr = np.zeros(rolavnum)
+yarr = np.zeros(rolavnum)
 
 flow_x = 0
 flow_y = 0
@@ -70,63 +79,6 @@ points_to_track = []
 
 odom_pub = rospy.Publisher("/our_odometry",Odometry,queue_size = 10)
 contours_pub = rospy.Publisher('/mask', Image, queue_size=1)
-
-#########################
-#KALMAN EFFORTS
-
-# dt = 0.01
-# end_time = 1.0
-# F = np.array([[1, dt], [0, 1]], np.float32)
-# G = np.array([[0.5 * dt**2, dt]], np.float32).T
-# H = np.array([[1, 0]], np.float32)
-# x0 = np.array([[0.01, 0.01]], np.float32).T
-# P0 = np.ones((2, 2), np.float32) * 0.001
-# sigma_process = 10.0
-# sigma_measure = 0.1
-# x0_kalman = np.array([[0, 0]], np.float32).T
-
-# Q0 = np.matmul(G, G.T) * sigma_process**2
-# R0 = np.eye(1, dtype=np.float32) * sigma_measure**2
-
-# # Create instance of the robust Kalman filter filter
-# kalman_robust = RobustKalman(F, None, H, x0_kalman, P0, Q0, R0, use_robust_estimation=True)
-
-# # Initialize
-# x = x0
-# z = np.matmul(H, x0)
-# t_axis = np.arange(0, end_time, dt)
-
-# # Use this utility to track variables over time for plotting
-# history = VariablesHistory()
-
-# def kalman(x):
-#     global kalman_robust, history, sigma_process, sigma_measure, z
-
-#     history.update('x', x)
-#     history.update('z', z)
-#     history.update('x_kalman_robust', kalman_robust.current_estimate)
-
-#     q = np.random.normal(0.0, sigma_process, size=(1, 1))
-
-#     rare_event = 1 if np.random.uniform(0, 1.0) > 0.9 else 0
-#     r = np.random.normal(0.0, sigma_measure, size=(1, 1)) + np.random.choice([-1.0, 1.0]) * np.random.uniform(1.0, 1.5) * rare_event
-
-#     x = np.matmul(F, x) + np.matmul(G, q)
-#     z = np.matmul(H, x) + r
-
-#     kalman_robust.time_update()
-#     kalman_robust.measurement_update(z)
-
-#     point_x = history['x_kalman_robust'][0][0][0]
-#     point_y = history['x_kalman_robust'][0][0][1]
-
-#     print(point_x,point_x)
-
-#     return point_x,point_y
-
-
-
-
 
 def totuple(a):
     try:
@@ -162,83 +114,22 @@ def rundetection():
     ts.registerCallback(PoseEstimate)
     rospy.spin()
 
-
-def make_odometry(depth, delta_t):
-    global flow_x_old
-    #rosrun topic_tools throttle messages our_odometry 5.0 our_odometry
-
-    global flow_x, flow_y
-
-    flow_x = flow_x*5
-    flow_y = flow_y*5
-    depth = depth*1.001
-    # print(flow_x, flow_y, depth)
-
-    if abs(flow_y)>abs(flow_x_old):
-        flow_x_old=flow_y
-
-    if abs(flow_x)<1.8 or abs(flow_y)<1.8 or abs(depth)<2.5:
-
-    # rospy.init_node('from_flow', anonymous=True)
-    # ts = message_filters.TimeSynchronizer(flowsub,10)
-        odom_broadcast = tf.TransformBroadcaster()
-
-        odom_quat = tf.transformations.quaternion_from_euler(0,0,0)
-
-        odom_broadcast.sendTransform((flow_x, flow_y, depth),(odom_quat),rospy.get_rostime(),'base_link', "odom")
-
-        odom = Odometry()
-
-        odom.pose.pose = Pose(Point(flow_x, flow_y, depth), Quaternion(*odom_quat))
-
-        odom.header.stamp = rospy.get_rostime()
-        odom.header.frame_id = "odom"
-        odom.child_frame_id = "base_link"
-
-        odom_pub.publish(odom)
-
-
 def featuredetect(img):
     numFeatures = 500
 
     surf = cv2.xfeatures2d.SURF_create(numFeatures)
     kp, des = surf.detectAndCompute(img,None)
-    # Initiate STAR detector
-    # orb = cv2.ORB_create(nfeatures=10000)
-
-    # # compute the descriptors with ORB
-    # kp, des = orb.detectAndCompute(img, None)
 
     # draw only keypoints location,not size and orientation
     img2 = cv2.drawKeypoints(img,kp,None,color=(0,255,0), flags=0)
 
-
-# PLOT!
-
-    # plt.cla()
-    # plt.imshow(img2)
-    # plt.pause(0.005)
-    # # plt.show()
-
     return kp, des
 
 def featurecompare(des1, des2):
-    # FLANN parameters
-    # FLANN_INDEX_KDTREE = 1
-    # index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
-    # search_params = dict(checks=50)   # or pass empty dictionary
 
     matcher = cv2.DescriptorMatcher_create(cv2.DescriptorMatcher_FLANNBASED)
     matches = matcher.knnMatch(np.asarray(des1,np.float32),np.asarray(des2,np.float32), 2) #2
 
-    # ratio_thresh = 0.7
-    # good_matches = []
-    # for m,n in matches:
-    #     if m.distance < ratio_thresh * n.distance:
-    #         good_matches.append(m)
-
-    # flann = cv2.FlannBasedMatcher(index_params,search_params)
-    # matches = flann.knnMatch(des1,des2,k=2)
     return matches
 
 def plotter(image, points, points1, points2, cc, col, col1, col2):
@@ -280,12 +171,6 @@ def plotavg(image, point, cc):
     plt.imshow(color_img)
     # plt.show()
     plt.pause(0.05)
-
-def angle_cos(p0, p1, p2):
-    d1, d2 = (p0-p1).astype('float'), (p2-p1).astype('float')
-    return abs( np.dot(d1, d2) / np.sqrt( np.dot(d1, d1)*np.dot(d2, d2) ) )
-
-
 
 def find_squares(img):
 
@@ -348,221 +233,152 @@ def find_squares(img):
 
     return new_gray, cnts_oi
 
-# def kmeans(data, k=3, normalize=False, limit=500):
-#     """Basic k-means clustering algorithm.
-#     """
-#     # optionally normalize the data. k-means will perform poorly or strangely if the dimensions
-#     # don't have the same ranges.
-#     if normalize:
-#         stats = (data.mean(axis=0), data.std(axis=0))
-#         data = (data - stats[0]) / stats[1]
-    
-#     # pick the first k points to be the centers. this also ensures that each group has at least
-#     # one point.
-#     centers = data[:k]
+class Queue:
 
-#     for i in range(limit):
-#         # core of clustering algorithm...
-#         # first, use broadcasting to calculate the distance from each point to each center, then
-#         # classify based on the minimum distance.
-#         classifications = np.argmin(((data[:, :, None] - centers.T[None, :, :])**2).sum(axis=1), axis=1)
-#         print(classifications)
-#         # next, calculate the new centers for each cluster.
-#         new_centers = np.array([data[classifications == j, :].mean(axis=0) for j in range(k)])
+    #Constructor creates a list
+    def __init__(self):
+        self.queue = list()
 
-#         # if the centers aren't moving anymore it is time to stop.
-#         if (new_centers == centers).all():
-#             break
-#         else:
-#             centers = new_centers
-#     # else:
-#     #     # this will not execute if the for loop exits on a break.
-#     #     # raise ValueError("Clustering algorithm did not complete within limit iterations")
-#     #     # centers = new_centers
-#     #     centers = []
-            
-#     # if data was normalized, the cluster group centers are no longer scaled the same way the original
-#     # data is scaled.
-#     if normalize:
-#         centers = centers * stats[1] + stats[0]
+    #Adding elements to queue
+    def enqueue(self,data):
+        #Checking to avoid duplicate entry (not mandatory)
+        if data not in self.queue:
+            self.queue.insert(0,data)
+            return True
+        return False
 
-#     # print("Clustering completed after {} iterations".format(i))
-#     # print(np.shape(centers))
-#     return classifications, centers
+    #Removing the last element from the queue
+    def dequeue(self):
+        if len(self.queue)>0:
+            return self.queue.pop()
+        return ("Queue Empty!")
 
+    #Getting the size of the queue
+    def size(self):
+        return len(self.queue)
 
+    #printing the elements of the queue
+    def printQueue(self):
+        return self.queue
 
+points_max_cx = Queue()
+points_max_cy = Queue()
 
 
 def PoseEstimate(leftImg,rightImg):
-    global prev_time
-    global x_prev
-    global y_prev
-    # kalman_robust, history, z, sigma_process, sigma_measure
+    global it
+    left_image = bridge.imgmsg_to_cv2(leftImg, desired_encoding="mono8")
+
+    img = left_image
+
+    large_cnts = 0
+
+    img, cnts_oi = find_squares(img)
+    b1 = 0
+    kp1, des1 = featuredetect(left_image)
+    cur_img_des = des1
+    b = cur_img_des
+
+    matches = featurecompare(cur_img_des, des_img_des)
+
+    points = np.zeros((len(matches),2))
+    delta = np.zeros((len(matches),2))
+    dist = np.zeros((len(matches)))
+
+    matchMask = np.zeros((len(matches),2))        
+    # ratio test as per Lowe's paper
+    # source: https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_feature2d/py_matcher/py_matcher.html
+    if len(matches)!=0:
+        for i in range(0,len(matches)-1):
+            points[i] = kp1[matches[i][0].queryIdx].pt#features[m.queryIdx]]
+            if matches[i][0].distance < 0.8*matches[i][1].distance:    
+                matchMask[i]=[1,0]       
     
-    rolavnum = 6
+    matchMaskbool = matchMask.astype('bool')
+    points = points[matchMaskbool[:,0]]
 
-    # Rolling average
-    xarr = np.zeros(rolavnum)
-    yarr = np.zeros(rolavnum)
+    # Finding points inside contours
+    # y = 0
+    points_new = []#np.zeros((len(matches),2))
+    for x in range(len(points)):
+        for l in range(len(cnts_oi)):
+        # print(points[x].tolist())
+            point = (int(points[x][0]), int(points[x][1]))
+            dist = cv2.pointPolygonTest(cnts_oi[l],point,False)
+            if dist >= 0:
+                points_new.append(points[x])
+                # y = y+1
 
-    for iterable in range(0,rolavnum):
-        secs = leftImg.header.stamp.secs
-        nsecs = leftImg.header.stamp.nsecs
-        current_time = float(secs) + float(nsecs)*1e-9
+    # Finding average points
 
-        delta_t = current_time - prev_time
-        prev_time = current_time
-        # curr_time = rospy.get_rostime()
+    # classifications, centers = kmeans(points_new)
+    clusters_num = 3
+    if len(points_new)<clusters_num:
+        clusters_num = len(points_new)
 
-        left_image = bridge.imgmsg_to_cv2(leftImg, desired_encoding="mono8")
+    if clusters_num:
+        print(clusters_num)
+        estimator = KMeans(n_clusters=clusters_num)
+        estimator.fit(points_new)
+        # Ck's are the different clusters with corresponding point indices
+        c1 = np.where(estimator.labels_ == 0)[0]
+        c2 = np.where(estimator.labels_ == 1)[0]
+        c3 = np.where(estimator.labels_ == 2)[0]
+        max_len = len(c1)
+        max_c = 0
+        max_con = c1
+ 
+        if len(c2) > max_len:
+            max_len = len(c2)
+            max_c = 1
+            max_con = c2
+        if len(c3) > max_len:
+            max_len = len(c3)
+            max_c = 2
+            max_con = c3
 
-        img = left_image
+        points_max_c = []
+        # print(points_new[max_con[0]][:])
+        for i in range(max_len):
+            points_max_c.append(points_new[max_con[i]][:])
 
-        large_cnts = 0
+        max_cx = estimator.cluster_centers_[max_c][0]
+        max_cy = estimator.cluster_centers_[max_c][1]
 
-        img, cnts_oi = find_squares(img)
-        b1 = 0
-        kp1, des1 = featuredetect(left_image)
-        cur_img_des = des1
-        b = cur_img_des
+        if it<rolavnum: 
+            points_max_cx.enqueue(max_cx)
+            points_max_cy.enqueue(max_cy)
 
-        keypoints = cPickle.loads(open("./keypoints.txt").read())
-        kp = []
+        else:
+            points_max_cx.dequeue()
+            points_max_cy.dequeue()
 
-        for point in keypoints:
-            temp = cv2.KeyPoint(x=point[0][0],y=point[0][1],_size=point[1], _angle=point[2], _response=point[3], _octave=point[4], _class_id=point[5]) 
-            kp.append(temp)
+            points_max_cx.enqueue(max_cx)
+            points_max_cy.enqueue(max_cy)
 
-        des_img_des = np.loadtxt('descriptors.txt', dtype = float)
-        a = des_img_des
-        # a1 = np.loadtxt('descriptors1.txt', dtype = float)
 
-        matches = featurecompare(cur_img_des, des_img_des)
-
-        points = np.zeros((len(matches),2))
-        delta = np.zeros((len(matches),2))
-        dist = np.zeros((len(matches)))
-
-        matchMask = np.zeros((len(matches),2))        
-        # ratio test as per Lowe's paper
-        # source: https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_feature2d/py_matcher/py_matcher.html
-        if len(matches)!=0:
-            for i in range(0,len(matches)-1):
-                points[i] = kp1[matches[i][0].queryIdx].pt#features[m.queryIdx]]
-                if matches[i][0].distance < 0.8*matches[i][1].distance:    
-                    matchMask[i]=[1,0]       
+        it = it + 1
         
-        matchMaskbool = matchMask.astype('bool')
-        points = points[matchMaskbool[:,0]]
+        x = 0
+        y = 0
+        temo1 = points_max_cx.printQueue()
+        temo2 = points_max_cy.printQueue()
+        for i in range (points_max_cy.size()):
+            x = x + temo1[i]
+            y = y + temo2[i]
 
-        # Finding points inside contours
-        # y = 0
-        points_new = []#np.zeros((len(matches),2))
-        for x in range(len(points)):
-            for l in range(len(cnts_oi)):
-            # print(points[x].tolist())
-                point = (int(points[x][0]), int(points[x][1]))
-                dist = cv2.pointPolygonTest(cnts_oi[l],point,False)
-                if dist >= 0:
-                    points_new.append(points[x])
-                    # y = y+1
-
-        # Finding average points
-
-        # classifications, centers = kmeans(points_new)
-        clusters_num = 3
-        if len(points_new)<clusters_num:
-            clusters_num = len(points_new)
-
-        if clusters_num:
-            print(clusters_num)
-            estimator = KMeans(n_clusters=clusters_num)
-            estimator.fit(points_new)
-            # Ck's are the different clusters with corresponding point indices
-            c1 = np.where(estimator.labels_ == 0)[0]
-            c2 = np.where(estimator.labels_ == 1)[0]
-            c3 = np.where(estimator.labels_ == 2)[0]
-            max_len = len(c1)
-            max_c = 0
-            max_con = c1
-     
-            if len(c2) > max_len:
-                max_len = len(c2)
-                max_c = 1
-                max_con = c2
-            if len(c3) > max_len:
-                max_len = len(c3)
-                max_c = 2
-                max_con = c3
-
-            max_cx = estimator.cluster_centers_[max_c][0]
-            max_cy = estimator.cluster_centers_[max_c][1]
-
-            points_max_c = []
-            # print(points_new[max_con[0]][:])
-            for i in range(max_len):
-                points_max_c.append(points_new[max_con[i]][:])
-            
-
-            # print(max_cy)
-            # print({i: np.where(estimator.labels_ == i)[0] for i in range(estimator.n_clusters)})
-
-            # print(np.shape(classifications))
-            # print(centers.transpose()[0].astype(int))
-            xarr[iterable] = max_cx
-            yarr[iterable] = max_cy
-
-        #     # center_x, center_y = centers.astype(int)
-
-        x = int(np.average(xarr))
-        y = int(np.average(yarr))
-        # first = 1
-        # if (first == 1):
-        #     x_prev = x
-        #     y_prev = y
-        #     first = 0
-
-        # if np.sqrt(np.square(x_prev-x) - )
-
-         
+        # rolling avg centroid
+        x = int(x/points_max_cy.size())
+        y = int(y/points_max_cy.size())
 
         # plotavg(img,(x,y),0)
 
-        centroid = [max_cx,max_cy]
-        # plotter(img,np.array(points_new),0, (255, 0, 0))
+        centroid = [x,y]
+
+        # # plotter(img,np.array(points_new),0, (255, 0, 0))
         pub_cv = plotter(img, points_new, points_max_c, centroid, 0, (255, 0, 0), (0, 0, 255), (0, 255, 0))
 
         contours_pub.publish(bridge.cv2_to_imgmsg(pub_cv, "rgb8")) 
-
-
-
-    # x_prev = x
-    # y_prev = y
-
-    # print(y)
-    # point = []
-    # point = kalman(np.array([[x,y]], np.float32).T)
-    # for t in t_axis:
-    #     print(z)
-    #     history.update('x', point)
-    #     history.update('z', z)
-    #     history.update('x_kalman_robust', kalman_robust.current_estimate)
-
-    #     q = np.random.normal(0.0, sigma_process, size=(1, 1))
-
-    #     rare_event = 1 if np.random.uniform(0, 1.0) > 0.9 else 0
-    #     r = np.random.normal(0.0, sigma_measure, size=(1, 1)) + np.random.choice([-1.0, 1.0]) * np.random.uniform(1.0, 1.5) * rare_event
-
-    #     x = np.matmul(F, x) + np.matmul(G, q)
-    #     z = np.matmul(H, x) + r
-
-    #     kalman_robust.time_update()
-    #     kalman_robust.measurement_update(z)
-
-    # x = point[0]
-    # y = point[1]
-
 
 if __name__ == '__main__':
     try:
