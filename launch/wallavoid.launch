@@ -1,0 +1,9 @@
+
+<launch>
+	<include file = "$(find bebop_driver)/launch/bebop_node.launch"/>
+
+	<node name="front_camera" pkg ="dqmc" type="ros-capture.py"/>
+
+	<node name="wallavoider" pkg="dqmc" type="detectWall_v1.py" output="screen"/>
+
+</launch>

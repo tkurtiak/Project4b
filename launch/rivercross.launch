@@ -1,0 +1,14 @@
+<launch>
+
+	<!-- <arg name="camloc" value="($find dqmc)/m021v4l2/opencv/python/ros-capture.py"/> -->
+
+	<!-- <node name="front_camera" pkg ="dqmc" type="$(arg camloc)"/> -->
+	
+	<include file ="$(find duo3d_driver)/launch/duo3d_camera.launch"/>
+	
+	<include file ="$(find bebop_driver)/launch/bebop_node.launch"/>
+	
+	<node name="bridge_detect" pkg="dqmc" type="bridge_detect.py"/>
+	<!-- <node name="cross_bridge" pkg="dqmc" type="cross_bridge.py" output="screen"/> -->
+
+</launch>
