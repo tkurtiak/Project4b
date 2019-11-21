@@ -12,24 +12,25 @@ from geometry_msgs.msg import Point, Pose, Quaternion, Vector3
 from cv_bridge import CvBridge, CvBridgeError
 import rospy
 import copy
-import stereoDepth as SD
+# import stereoDepth as SD
 # from sklearn import linear_model, datasets
 
 from nav_msgs.msg import Odometry # We need this message type to read position and attitude from Bebop nav_msgs/Odometry
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Point
 from std_msgs.msg import Empty
-import PlaneRANSAC as PR
+# import PlaneRANSAC as PR
 from itertools import compress
 import tf
 from optic_flow_example.msg import OpticFlowMsg
 import cPickle
 import sys
-from pykalman import UnscentedKalmanFilter
+# from pykalman import UnscentedKalmanFilter
 
-from robust_kalman import RobustKalman
-from robust_kalman.utils import HuberScore, VariablesHistory, WindowStatisticsEstimator
+# from robust_kalman import RobustKalman
+# from robust_kalman.utils import HuberScore, VariablesHistory, WindowStatisticsEstimator
 from sklearn.cluster import KMeans
+# from sklearn.linear_model import RANSACRegressor
 
 ros_path = '/opt/ros/kinetic/lib/python2.7/dist-packages'
 
@@ -47,7 +48,7 @@ sys.path.append('/opt/ros/kinetic/lib/python2.7/dist-packages')
 
 # from klt import lucasKannadeTracker
 
-import faulthandler
+# import faulthandler
 
 flow_x = 0
 flow_y = 0
@@ -237,15 +238,21 @@ def featurecompare(des1, des2):
     # matches = flann.knnMatch(des1,des2,k=2)
     return matches
 
-def plotter(image, points, cc, col):
+def plotter(image, points, points1, points2, cc, col, col1, col2):
 
     color_img = image
     if cc == 0:
         color_img = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
     color = col # bgr colorspace
+    color1 = col1
+    color2 = col2
     linewidth = 3
     for x,y in points:
         cv2.circle(color_img, (int(x),int(y)), 5 , color, thickness = linewidth) # draw a red line from the point with vector = [vx, vy]        
+    for x,y in points1:
+        cv2.circle(color_img, (int(x),int(y)), 5 , color1, thickness = linewidth) # draw a red line from the point with vector = [vx, vy]        
+    # for x,y in points2:
+    cv2.circle(color_img, (int(points2[0]),int(points2[1])), 5 , color2, thickness = linewidth) # draw a red line from the point with vector = [vx, vy]        
     
     plt.cla()
     # plt.plot(color_img)
@@ -457,13 +464,13 @@ def PoseEstimate(leftImg,rightImg):
                     # y = y+1
 
         # Finding average points
-        avg_point_x = np.average(points_new[:][0])
-        avg_point_y = np.average(points_new[:][1])
-
-        avg_point = (int(avg_point_x),int(avg_point_y))
 
         # classifications, centers = kmeans(points_new)
-        estimator = KMeans(n_clusters=3)
+        clusters_num = 3
+        if len(points_new)<clusters_num:
+            clusters_num = len(points_new)
+        print(clusters_num)
+        estimator = KMeans(n_clusters=clusters_num)
         estimator.fit(points_new)
         # Ck's are the different clusters with corresponding point indices
         c1 = np.where(estimator.labels_ == 0)[0]
@@ -471,21 +478,24 @@ def PoseEstimate(leftImg,rightImg):
         c3 = np.where(estimator.labels_ == 2)[0]
         max_len = len(c1)
         max_c = 0
+        max_con = c1
  
         if len(c2) > max_len:
             max_len = len(c2)
             max_c = 1
+            max_con = c2
         if len(c3) > max_len:
             max_len = len(c3)
             max_c = 2
+            max_con = c3
 
         max_cx = estimator.cluster_centers_[max_c][0]
         max_cy = estimator.cluster_centers_[max_c][1]
 
         points_max_c = []
-        print(points_new[0][0])
-        # for i in range(max_len):
-        #     points_max_c.append(points_new[i,:])
+        # print(points_new[max_con[0]][:])
+        for i in range(max_len):
+            points_max_c.append(points_new[max_con[i]][:])
         
 
         # print(max_cy)
@@ -501,8 +511,10 @@ def PoseEstimate(leftImg,rightImg):
     # x = int(np.average(xarr))
     # y = int(np.average(yarr))
 
-    plotavg(img,(max_cx,max_cy),0)
-    plotter(img,np.array(points_new),0, (255, 0, 0))
+    # plotavg(img,(max_cx,max_cy),0)
+    centroid = [max_cx,max_cy]
+    # plotter(img,np.array(points_new),0, (255, 0, 0))
+    plotter(img, points_new, points_max_c, centroid, 0, (255, 0, 0), (0, 0, 255), (0, 255, 0))
 
     # print(y)
     # point = []
