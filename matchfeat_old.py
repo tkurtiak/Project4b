@@ -503,18 +503,18 @@ def PoseEstimate(leftImg,rightImg):
 
         # print(np.shape(classifications))
         # print(centers.transpose()[0].astype(int))
-    #     xarr[iterable] = max(centers.transpose()[0].astype(int))
-    #     yarr[iterable] = max(centers.transpose()[1].astype(int))
+        xarr[iterable] = max_cx
+        yarr[iterable] = max_cy
 
     #     # center_x, center_y = centers.astype(int)
 
-    # x = int(np.average(xarr))
-    # y = int(np.average(yarr))
+    x = int(np.average(xarr))
+    y = int(np.average(yarr))
 
-    # plotavg(img,(max_cx,max_cy),0)
-    centroid = [max_cx,max_cy]
-    # plotter(img,np.array(points_new),0, (255, 0, 0))
-    plotter(img, points_new, points_max_c, centroid, 0, (255, 0, 0), (0, 0, 255), (0, 255, 0))
+    plotavg(img,(x,y),0)
+    # centroid = [max_cx,max_cy]
+    # # plotter(img,np.array(points_new),0, (255, 0, 0))
+    # plotter(img, points_new, points_max_c, centroid, 0, (255, 0, 0), (0, 0, 255), (0, 255, 0))
 
     # print(y)
     # point = []
